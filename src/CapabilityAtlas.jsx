@@ -3,7 +3,7 @@ import {
   Lock, Sparkles, Grid3x3, Route, BookOpen, X, Plus, Info, ChevronRight,
   Check, NotebookPen, Flag, Recycle, GraduationCap, ShieldAlert, Puzzle,
   Cpu, Coins, HeartHandshake, Link2, Zap, Layers, Database, RotateCcw,
-  FileText, Printer
+  FileText, Printer, Waypoints, ChevronsRight
 } from "lucide-react";
 
 /* ---------------- Persistence ----------------
@@ -72,6 +72,18 @@ const TAXONOMY = [
   { id: "c8", std: "Metadata Management", plain: "Documenting datasets & definitions", ready: 68, om: 20 },
 ];
 const READY_FACTORS = { data: "Data quality", std: "Standardization", rep: "Decision repeatability", vol: "Volume" };
+
+/* Statistical-production value stream: the end-to-end flow of value stages, each realized by a core capability.
+   Stakeholder Engagement (c7) and Metadata Management (c8) cut across every stage, so they render as a supporting band. */
+const VALUE_STREAM = [
+  { id: "vs1", capId: "c1", label: "Establish frame" },
+  { id: "vs2", capId: "c2", label: "Collect" },
+  { id: "vs3", capId: "c3", label: "Process & edit" },
+  { id: "vs4", capId: "c4", label: "Estimate" },
+  { id: "vs5", capId: "c5", label: "Protect" },
+  { id: "vs6", capId: "c6", label: "Disseminate" },
+];
+const SUPPORTING_CAPS = ["c7", "c8"];
 
 const SEED_SERVICES = [
   { id: "s1", unitId: "u1", name: "Monthly Business Conditions Survey", to: "Program analysts" },
@@ -226,6 +238,7 @@ const CONCEPTS = {
   info: { title: "Information Object", tag: "TOGAF · Data Architecture (Phase C)", body: "Pass 3 looks past capabilities and processes to the data itself: an Information Object — like a business register or contact list — touched by multiple processes across units. Even when their capabilities differ, independently building and maintaining separate pipelines to the same underlying data is duplicated integration effort.", why: "Data duplication is invisible in an org chart and invisible in a capability map — it only shows up when you trace the data itself." },
   wp: { title: "Work Package", tag: "TOGAF ADM · Migration Planning artifacts", body: "A Work Package is the atomic funded unit of change in a migration plan — its own cost, benefit, and dependencies on other packages. The roadmap engine topologically sorts by dependency, then greedily packs by benefit-per-dollar into fiscal envelopes. Proposing your own package tests how a real initiative would land against the existing plan.", why: "TB submissions are built from work packages, not capabilities — this is the unit a Treasury analyst actually reads." },
   bizcase: { title: "The Business Case", tag: "TBS · Treasury Board Submission", body: "Everything you entered assembles into a Treasury Board–style business case: an evidence-based problem statement (the duplication findings), a costed options analysis, and a sequenced, funded implementation plan. Because every figure traces back to a source record, the narrative is defensible line by line.", why: "Architecture that can't be read as a funding ask stays a diagram. This is the artifact that moves money." },
+  vstream: { title: "Value Stream", tag: "TOGAF · ArchiMate 3.2 · Value Streams", body: "A Value Stream is the end-to-end sequence of stages that produce a result for a stakeholder — here, the statistical-production line from establishing a frame to disseminating outputs. Unlike a process (which belongs to one unit), a value stream cuts horizontally across units, so seeing which lanes light up at each stage is current-state duplication in motion.", why: "The heatmap tells you a capability is duplicated; the value stream shows you where in the production flow it happens — which is what makes the consolidation story concrete." },
 };
 
 /* ---------------- UI atoms ---------------- */
@@ -382,6 +395,7 @@ export default function CapabilityAtlas() {
   const NAV = [
     { id: "workbook", label: "Workbook", icon: NotebookPen, locked: false },
     { id: "heatmap", label: T.heat, icon: Grid3x3, locked: !heatUnlocked },
+    { id: "vstream", label: std ? "Value Stream" : "Production Flow", icon: Waypoints, locked: !heatUnlocked },
     { id: "roadmap", label: T.road, icon: Route, locked: !roadUnlocked },
     { id: "modules", label: `Modules${activeModCount ? " · " + activeModCount : ""}`, icon: Puzzle, locked: false },
     { id: "bizcase", label: "Business Case", icon: FileText, locked: !roadUnlocked },
@@ -393,6 +407,7 @@ export default function CapabilityAtlas() {
     if (!locked && id === "roadmap") fire("road");
     if (id === "modules") fire("overlay");
     if (!locked && id === "bizcase") fire("bizcase");
+    if (!locked && id === "vstream") fire("vstream");
   };
 
   /* ============================ RENDER ============================ */
@@ -637,6 +652,83 @@ export default function CapabilityAtlas() {
               </div>
             </div>
           )}
+
+          {/* VALUE STREAM */}
+          {view === "vstream" && !heatUnlocked && <LockedPanel need="Record 2 services and 3 capabilities for your unit in the Workbook — or use Fast-forward." />}
+          {view === "vstream" && heatUnlocked && (() => {
+            const stageUnits = VALUE_STREAM.map((s) => UNITS.filter((u) => grid.cells[s.capId + u.id].fte > 0));
+            const colTemplate = `128px repeat(${VALUE_STREAM.length}, minmax(120px, 1fr))`;
+            return (
+              <div className="flex flex-col gap-4">
+                <div className="rounded-lg border p-5" style={{ borderColor: C.line, background: C.card }}>
+                  <div className="flex items-center gap-2"><Waypoints size={18} style={{ color: C.gold }} /><h2 className="text-lg font-bold">{std ? "Value stream" : "Production flow"} — current state</h2></div>
+                  <p className="mt-1 text-sm" style={{ color: C.mut }}>The statistical-production line runs left to right. Each <b>lane</b> is an org unit; a filled cell means that unit runs a process at that stage. A stage lit in <b style={{ color: C.crimson }}>two or more lanes</b> is duplicated work — the heatmap's finding, now placed in the flow where it actually happens.</p>
+
+                  <div className="mt-4 overflow-x-auto">
+                    <div style={{ minWidth: 128 + VALUE_STREAM.length * 128 }}>
+                      {/* ribbon */}
+                      <div className="grid items-stretch gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
+                        <div />
+                        {VALUE_STREAM.map((s, i) => {
+                          const cap = TAXONOMY.find((c) => c.id === s.capId); const dup = stageUnits[i].length >= 2;
+                          return (
+                            <div key={s.id} className="relative flex flex-col rounded-md px-2.5 py-2" style={{ background: C.ink }}>
+                              <div className="mono text-[10px]" style={{ color: C.gold }}>STAGE {i + 1}</div>
+                              <div className="text-sm font-bold leading-tight" style={{ color: "#FFF" }}>{s.label}</div>
+                              <div className="mono mt-0.5 text-[10px]" style={{ color: "#A8B2C6" }}>{std ? cap.std : cap.plain}</div>
+                              {dup && <div className="mt-1"><Tag tone="red">{stageUnits[i].length}× duplicated</Tag></div>}
+                              {i < VALUE_STREAM.length - 1 && <ChevronsRight size={16} className="absolute -right-3 top-1/2 z-10 -translate-y-1/2" style={{ color: C.gold }} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* lanes */}
+                      {UNITS.map((u) => (
+                        <div key={u.id} className="mt-1.5 grid items-stretch gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
+                          <div className="flex items-center rounded-md px-2 py-1.5" style={{ background: u.mine ? C.goldSoft : C.paper, border: `1px solid ${u.mine ? C.gold : C.line}` }}>
+                            <span className="mono text-xs font-semibold" style={{ color: u.mine ? "#7A5410" : C.ink }}>{u.short}{u.mine ? " (you)" : ""}</span>
+                          </div>
+                          {VALUE_STREAM.map((s) => {
+                            const cell = grid.cells[s.capId + u.id];
+                            return (
+                              <div key={s.id} className="rounded-md p-1.5" style={{ background: cell.fte ? (u.mine ? C.goldSoft : C.tealSoft) : "#FBFAF6", border: `1px solid ${cell.fte ? (u.mine ? C.gold : C.tealSoft) : C.line}` }}>
+                                {cell.fte ? cell.list.map((p) => (
+                                  <div key={p.id} className="mono truncate text-[11px] leading-snug" style={{ color: C.ink }} title={`${p.name} · ${p.fte} FTE`}>{p.name} <span style={{ color: C.mut }}>· {p.fte}</span></div>
+                                )) : <div className="text-center text-xs" style={{ color: C.line }}>·</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* supporting capabilities band */}
+                <div className="rounded-lg border p-5" style={{ borderColor: C.line, background: C.card }}>
+                  <div className="flex items-center gap-2"><Layers size={16} style={{ color: C.teal }} /><h3 className="text-base font-bold">Supporting capabilities</h3></div>
+                  <p className="mt-1 text-sm" style={{ color: C.mut }}>These cut across every stage rather than sitting at one point in the flow — so consolidating them pays off along the whole stream.</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {SUPPORTING_CAPS.map((cid) => {
+                      const cap = TAXONOMY.find((c) => c.id === cid);
+                      const units = UNITS.filter((u) => grid.cells[cid + u.id].fte > 0);
+                      return (
+                        <div key={cid} className="flex flex-wrap items-center gap-2 rounded-md border p-3" style={{ borderColor: C.line, background: C.paper }}>
+                          <span className="text-sm font-semibold">{std ? cap.std : cap.plain}</span>
+                          {units.length >= 2 && <Tag tone="red">{units.length}× duplicated</Tag>}
+                          <span className="ml-auto flex flex-wrap gap-1.5">
+                            {units.length === 0 ? <span className="text-xs" style={{ color: C.mut }}>not yet performed</span> :
+                              units.map((u) => <span key={u.id} className="mono rounded px-2 py-0.5 text-[11px]" style={{ background: u.mine ? C.goldSoft : "#E7EAF1", color: u.mine ? "#7A5410" : C.ink2 }}>{u.short} · {grid.cells[cid + u.id].fte} FTE</span>)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ROADMAP */}
           {view === "roadmap" && !roadUnlocked && <LockedPanel need="Unlocks together with the heatmap — complete the Workbook first." />}

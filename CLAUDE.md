@@ -42,10 +42,13 @@ npm run dev
 
 **Business Case export** — the "Business Case" tab (unlocks with the roadmap) assembles a Treasury Board–style submission live from state: letterhead, investment-summary tiles, executive summary with inline figures, a duplication-evidence table (from `ranked` + `biz` aggregates), shared-data findings (Pass 3), fiscal-year sequencing (from `plan.waves`), deferred items, and a basis-of-estimate note. Export is client-side print-to-PDF: a `@media print` block hides everything marked `.no-print` (header, rail, toast, export toolbar) and `window.print()` prints just the `.print-report` article. No PDF/docx library or backend — works offline. Print is intentionally the mechanism rather than a native dialog for confirm-style flows (those block the renderer).
 
+**Value stream / Production Flow view** — the "Value Stream" tab (unlocks with the heatmap) renders the statistical-production line as horizontal stages (`VALUE_STREAM`: Frame→Collect→Process→Estimate→Protect→Disseminate, each mapped to a core capability), with one lane per org unit built from `grid.cells[capId+unitId]`. Stages active in ≥2 lanes get a "N× duplicated" tag — the heatmap's finding placed in flow context. Cross-cutting capabilities (`SUPPORTING_CAPS` = c7 Stakeholder Engagement, c8 Metadata) render as a separate supporting band below, since they span every stage. CSS-grid layout with a shared `gridTemplateColumns` so lanes align under stage headers; horizontally scrollable.
+
 ## Not yet built (good next steps)
 
-- Value-stream lane view for Module 1's current-state sketching
 - Real backend persistence (currently localStorage only — no cross-device/multi-user sync)
+- Native .docx export (current export is browser print-to-PDF)
+- Second value stream (currently one hardcoded production line; the meta-model supports multiple)
 - Native .docx export (current export is browser print-to-PDF; a true .docx would need a client-side lib or backend)
 
 ## Rules
