@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Lock, Sparkles, Grid3x3, Route, BookOpen, X, Plus, Info, ChevronRight,
   Check, NotebookPen, Flag, Recycle, GraduationCap, ShieldAlert, Puzzle,
-  Cpu, Coins, HeartHandshake, Link2, Zap, Layers, Database, RotateCcw
+  Cpu, Coins, HeartHandshake, Link2, Zap, Layers, Database, RotateCcw,
+  FileText, Printer
 } from "lucide-react";
 
 /* ---------------- Persistence ----------------
@@ -224,6 +225,7 @@ const CONCEPTS = {
   overlay: { title: "The Overlay Pattern", tag: "Modular extensibility", body: "Modules never modify the core seven entities. Each is an overlay: extra attributes, rules, and views keyed to core IDs — like dimension tables joined to a fact table by foreign key. Install or drop one without touching the core.", why: "This is what keeps the tool from accreting into an unmaintainable monolith." },
   info: { title: "Information Object", tag: "TOGAF · Data Architecture (Phase C)", body: "Pass 3 looks past capabilities and processes to the data itself: an Information Object — like a business register or contact list — touched by multiple processes across units. Even when their capabilities differ, independently building and maintaining separate pipelines to the same underlying data is duplicated integration effort.", why: "Data duplication is invisible in an org chart and invisible in a capability map — it only shows up when you trace the data itself." },
   wp: { title: "Work Package", tag: "TOGAF ADM · Migration Planning artifacts", body: "A Work Package is the atomic funded unit of change in a migration plan — its own cost, benefit, and dependencies on other packages. The roadmap engine topologically sorts by dependency, then greedily packs by benefit-per-dollar into fiscal envelopes. Proposing your own package tests how a real initiative would land against the existing plan.", why: "TB submissions are built from work packages, not capabilities — this is the unit a Treasury analyst actually reads." },
+  bizcase: { title: "The Business Case", tag: "TBS · Treasury Board Submission", body: "Everything you entered assembles into a Treasury Board–style business case: an evidence-based problem statement (the duplication findings), a costed options analysis, and a sequenced, funded implementation plan. Because every figure traces back to a source record, the narrative is defensible line by line.", why: "Architecture that can't be read as a funding ask stays a diagram. This is the artifact that moves money." },
 };
 
 /* ---------------- UI atoms ---------------- */
@@ -354,6 +356,17 @@ export default function CapabilityAtlas() {
   const plan = useMemo(() => planRoadmap(base, mods, customWPs), [base, mods, customWPs]);
   const activeModCount = Object.values(mods).filter(Boolean).length;
 
+  /* Business-case aggregates — all traceable to the entries above */
+  const biz = useMemo(() => {
+    const recoverable = ranked.reduce((a, r) => a + r.savings, 0);
+    const scheduled = plan.waves.flat();
+    const investment = scheduled.reduce((a, w) => a + w.cost, 0);
+    const freed = plan.boosts.reduce((a, b) => a + b, 0);
+    const nUnitsInvolved = new Set(processes.map((p) => p.unitId)).size;
+    return { recoverable, investment, freed, scheduled, nUnitsInvolved };
+  }, [ranked, plan, processes]);
+  const genDate = useMemo(() => new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" }), []);
+
   const T = {
     service: std ? "Business Services" : "Things you deliver",
     serviceOne: std ? "Business Service" : "something you deliver",
@@ -371,6 +384,7 @@ export default function CapabilityAtlas() {
     { id: "heatmap", label: T.heat, icon: Grid3x3, locked: !heatUnlocked },
     { id: "roadmap", label: T.road, icon: Route, locked: !roadUnlocked },
     { id: "modules", label: `Modules${activeModCount ? " · " + activeModCount : ""}`, icon: Puzzle, locked: false },
+    { id: "bizcase", label: "Business Case", icon: FileText, locked: !roadUnlocked },
     { id: "glossary", label: `Glossary (${learned.length})`, icon: BookOpen, locked: false },
   ];
   const openView = (id, locked) => {
@@ -378,6 +392,7 @@ export default function CapabilityAtlas() {
     if (!locked && id === "heatmap") { fire("heat"); setTimeout(() => fire("info"), 400); }
     if (!locked && id === "roadmap") fire("road");
     if (id === "modules") fire("overlay");
+    if (!locked && id === "bizcase") fire("bizcase");
   };
 
   /* ============================ RENDER ============================ */
@@ -389,10 +404,17 @@ export default function CapabilityAtlas() {
         button:focus-visible { outline: 2px solid ${C.gold}; outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
         input::placeholder { color: #9AA1AE; }
+        @media print {
+          .no-print { display: none !important; }
+          body { background: #FFF !important; }
+          .print-report { box-shadow: none !important; border: none !important; }
+          .print-page { padding: 0 !important; }
+          .print-break { break-before: page; }
+        }
       `}</style>
 
       {/* Header */}
-      <header className="border-b" style={{ background: C.ink, borderColor: C.ink }}>
+      <header className="no-print border-b" style={{ background: C.ink, borderColor: C.ink }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded" style={{ background: C.gold, color: C.ink }}><Grid3x3 size={17} strokeWidth={2.5} /></div>
@@ -439,7 +461,7 @@ export default function CapabilityAtlas() {
 
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 lg:flex-row">
         {/* Unlock rail */}
-        <aside className="shrink-0 lg:w-60">
+        <aside className="no-print shrink-0 lg:w-60">
           <div className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.card }}>
             <div className="mono mb-3 text-xs font-medium uppercase tracking-wide" style={{ color: C.mut }}>Insight unlocks</div>
             <div className="flex flex-col">
@@ -768,6 +790,132 @@ export default function CapabilityAtlas() {
             </div>
           )}
 
+          {/* BUSINESS CASE */}
+          {view === "bizcase" && !roadUnlocked && <LockedPanel need="Complete the Workbook to unlock the roadmap — the business case is assembled from it." />}
+          {view === "bizcase" && roadUnlocked && (
+            <div className="flex flex-col gap-4">
+              <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4" style={{ borderColor: C.line, background: C.card }}>
+                <div className="flex items-center gap-2"><FileText size={18} style={{ color: C.gold }} /><div><div className="text-base font-bold">Business case export</div><div className="text-xs" style={{ color: C.mut }}>A Treasury Board–style submission, assembled from your entries. Print to PDF to share.</div></div></div>
+                <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold" style={{ background: C.ink, color: "#FFF" }}><Printer size={15} /> Print / Save as PDF</button>
+              </div>
+
+              <article className="print-report print-page rounded-lg border p-8" style={{ borderColor: C.line, background: C.card }}>
+                {/* Letterhead */}
+                <div className="border-b pb-4" style={{ borderColor: C.ink }}>
+                  <div className="mono text-xs uppercase tracking-wide" style={{ color: C.gold }}>Treasury Board Submission · Draft business case</div>
+                  <h1 className="mt-1 text-2xl font-bold" style={{ color: C.ink }}>Capability Consolidation & AI Transition</h1>
+                  <div className="mono mt-2 text-xs" style={{ color: C.mut }}>National statistical agency · Prepared by {mine.name} ({mine.short}) · {genDate}</div>
+                </div>
+
+                {/* Investment summary tiles */}
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {[
+                    { k: "Recoverable / yr", v: fmtK(Math.round(biz.recoverable)), sub: "from consolidating duplicated capabilities", fg: C.teal },
+                    { k: "Total investment", v: fmtK(biz.investment), sub: `${biz.scheduled.length} work packages over ${YEARS.length} years`, fg: C.ink },
+                    { k: "Reinvested savings", v: fmtK(biz.freed), sub: "decommissioning proceeds funding later waves", fg: C.gold },
+                  ].map((t) => (
+                    <div key={t.k} className="rounded-md border p-3" style={{ borderColor: C.line, background: C.paper }}>
+                      <div className="mono text-[11px] uppercase tracking-wide" style={{ color: C.mut }}>{t.k}</div>
+                      <div className="mt-1 text-xl font-bold" style={{ color: t.fg }}>{t.v}</div>
+                      <div className="mt-0.5 text-xs" style={{ color: C.mut }}>{t.sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 1. Executive summary */}
+                <section className="mt-6">
+                  <h2 className="text-base font-bold" style={{ color: C.ink }}>1 · Executive summary</h2>
+                  <p className="mt-2 text-sm leading-relaxed">
+                    Structured analysis of {biz.nUnitsInvolved} organizational units identified <b>{ranked.length}</b> {ranked.length === 1 ? "capability" : "capabilities"} performed redundantly across multiple units,
+                    representing an estimated <b style={{ color: C.teal }}>{fmtK(Math.round(biz.recoverable))} per year</b> in recoverable effort once consolidated.
+                    {ioGrid.length > 0 && <> A further <b>{ioGrid.length}</b> shared information {ioGrid.length === 1 ? "object is" : "objects are"} maintained by separate pipelines across units — duplicated data-integration effort invisible to an org-chart review.</>}
+                    {" "}This submission proposes a {YEARS.length}-year, dependency-sequenced program of <b>{biz.scheduled.length}</b> work packages totalling <b>{fmtK(biz.investment)}</b>, structured so decommissioning savings partially self-fund later waves.
+                  </p>
+                </section>
+
+                {/* 2. Problem — duplication evidence */}
+                <section className="mt-6">
+                  <h2 className="text-base font-bold" style={{ color: C.ink }}>2 · Evidence of duplication</h2>
+                  <p className="mt-1 text-sm" style={{ color: C.mut }}>Each row is a capability performed by two or more units. Figures derive mechanically from recorded processes and FTE — no estimation.</p>
+                  <table className="mt-3 w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                    <thead><tr style={{ borderBottom: `2px solid ${C.ink}` }}>
+                      <th className="py-1.5 pr-2 text-left font-semibold">Capability</th>
+                      <th className="py-1.5 px-2 text-right font-semibold">Units</th>
+                      <th className="py-1.5 px-2 text-right font-semibold">Duplicated FTE</th>
+                      <th className="py-1.5 pl-2 text-right font-semibold">Recoverable / yr</th>
+                    </tr></thead>
+                    <tbody>
+                      {ranked.map((r) => (
+                        <tr key={r.cap.id} style={{ borderBottom: `1px solid ${C.line}` }}>
+                          <td className="py-1.5 pr-2">{std ? r.cap.std : r.cap.plain}</td>
+                          <td className="mono py-1.5 px-2 text-right">{r.nUnits}</td>
+                          <td className="mono py-1.5 px-2 text-right">{r.totFte}</td>
+                          <td className="mono py-1.5 pl-2 text-right" style={{ color: C.teal }}>{fmtK(Math.round(r.savings))}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: `2px solid ${C.ink}` }}>
+                        <td className="py-1.5 pr-2 font-bold" colSpan={3}>Total recoverable</td>
+                        <td className="mono py-1.5 pl-2 text-right font-bold" style={{ color: C.teal }}>{fmtK(Math.round(biz.recoverable))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {ioGrid.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-bold" style={{ color: C.ink }}>2.1 · Shared data objects</h3>
+                      <ul className="mt-1.5 flex flex-col gap-1 text-sm">
+                        {ioGrid.map((r) => (
+                          <li key={r.io.id}><b>{r.io.name}</b> — maintained/consumed by {r.units.length} units ({r.units.map((u) => u.short).join(", ")}), {r.totFte} FTE of pipeline effort.</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+
+                {/* 3. Proposed sequencing */}
+                <section className="mt-6 print-break">
+                  <h2 className="text-base font-bold" style={{ color: C.ink }}>3 · Proposed investment & sequencing</h2>
+                  <p className="mt-1 text-sm" style={{ color: C.mut }}>Packages ordered by dependency, then packed into fiscal envelopes of {fmtK(base)}/yr. Each wave is a coherent, fundable interim state.</p>
+                  {YEARS.map((yr, y) => {
+                    const wave = plan.waves[y]; const spent = wave.reduce((a, w) => a + w.cost, 0);
+                    if (!wave.length) return null;
+                    return (
+                      <div key={yr} className="mt-3">
+                        <div className="flex items-baseline justify-between border-b pb-1" style={{ borderColor: C.line }}>
+                          <span className="mono text-sm font-semibold" style={{ color: C.ink }}>Wave {y + 1} · {yr}</span>
+                          <span className="mono text-xs" style={{ color: C.mut }}>{fmtK(spent)}{plan.boosts[y] > 0 && <span style={{ color: C.teal }}> · +{fmtK(plan.boosts[y])} reinvested</span>}</span>
+                        </div>
+                        <ul className="mt-1.5 flex flex-col gap-1 text-sm">
+                          {wave.map((w) => (
+                            <li key={w.id} className="flex justify-between gap-3">
+                              <span><span className="mono text-xs" style={{ color: C.mut }}>{w.id}</span> {w.name}{w.injected && <span style={{ color: C.violet }}> (compliance/readiness)</span>}{w.kind === "custom" && <span style={{ color: "#7A5410" }}> (unit-proposed)</span>}{w.deps.length > 0 && <span className="mono text-xs" style={{ color: C.mut }}> · needs {w.deps.join(", ")}</span>}</span>
+                              <span className="mono text-xs whitespace-nowrap" style={{ color: C.mut }}>{fmtK(w.cost)}{w.savings ? ` · frees ${fmtK(w.savings)}/yr` : ""}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                  {plan.deferred.length > 0 && (
+                    <div className="mt-3">
+                      <div className="mono text-sm font-semibold" style={{ color: C.crimson }}>Deferred beyond horizon</div>
+                      <ul className="mt-1 flex flex-col gap-1 text-sm">
+                        {plan.deferred.map(({ w, reason }) => <li key={w.id}><span className="mono text-xs">{w.id}</span> {w.name} — <span style={{ color: C.mut }}>{reason}.</span></li>)}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+
+                {/* 4. Basis */}
+                <section className="mt-6">
+                  <h2 className="text-base font-bold" style={{ color: C.ink }}>4 · Basis of estimate</h2>
+                  <p className="mt-1 text-sm leading-relaxed" style={{ color: C.mut }}>
+                    Effort is recorded in FTE per process; dollar figures apply a planning rate of {fmtK(FTE_COST)}/FTE/yr. Consolidation savings assume ~35% efficiency on duplicated effort plus operating costs — a conservative posture pending detailed costing. Retirement packages release their savings only after a parallel-run cutover gate. Every figure in this document traces to a source record in the capability workbook and can be drilled to the originating process.
+                  </p>
+                </section>
+              </article>
+            </div>
+          )}
+
           {/* GLOSSARY */}
           {view === "glossary" && (
             <div className="flex flex-col gap-3">
@@ -790,7 +938,7 @@ export default function CapabilityAtlas() {
 
       {/* Just-in-time toast */}
       {toast && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-lg border p-4 shadow-lg" style={{ background: C.ink, borderColor: C.gold, color: "#EDF0F6" }}>
+        <div className="no-print fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-lg border p-4 shadow-lg" style={{ background: C.ink, borderColor: C.gold, color: "#EDF0F6" }}>
           <div className="flex items-start gap-3">
             <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: C.gold, color: C.ink }}><Info size={16} /></div>
             <div className="min-w-0">

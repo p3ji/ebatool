@@ -40,11 +40,13 @@ npm run dev
 
 **Persistence** — `usePersistentState(key, initial)` hook mirrors workbook/roadmap state into `localStorage` under `capability-atlas:v1` (services, processes, learned concepts, fired tooltips, base envelope, installed mods, merged/flagged candidates, custom packages, label mode). Transient UI (active tab, toast, form drafts, selection) is deliberately *not* persisted. Header has a two-click inline Reset (not `window.confirm` — that blocks the renderer and clashes with the design) that clears the store and restores seed data. Storage failures (private mode/quota) fall back to in-memory silently.
 
+**Business Case export** — the "Business Case" tab (unlocks with the roadmap) assembles a Treasury Board–style submission live from state: letterhead, investment-summary tiles, executive summary with inline figures, a duplication-evidence table (from `ranked` + `biz` aggregates), shared-data findings (Pass 3), fiscal-year sequencing (from `plan.waves`), deferred items, and a basis-of-estimate note. Export is client-side print-to-PDF: a `@media print` block hides everything marked `.no-print` (header, rail, toast, export toolbar) and `window.print()` prints just the `.print-report` article. No PDF/docx library or backend — works offline. Print is intentionally the mechanism rather than a native dialog for confirm-style flows (those block the renderer).
+
 ## Not yet built (good next steps)
 
 - Value-stream lane view for Module 1's current-state sketching
-- Export to a TB-submission-style document (docx/pdf)
 - Real backend persistence (currently localStorage only — no cross-device/multi-user sync)
+- Native .docx export (current export is browser print-to-PDF; a true .docx would need a client-side lib or backend)
 
 ## Rules
 
