@@ -115,12 +115,12 @@ const BASE_WPS = [
 ];
 const YEARS = ["FY27–28", "FY28–29", "FY29–30", "FY30–31"];
 
-/* Assemble active work-package set from installed overlays (the "rule set" of each module) */
-function activeWPs(mods) {
-  let list = BASE_WPS.map((w) => ({ ...w, deps: [...w.deps], pia: false, injected: false }));
+/* Assemble active work-package set from the base plan, user-proposed packages, and installed overlays (the "rule set" of each module) */
+function activeWPs(mods, customWPs = []) {
+  let list = [...BASE_WPS, ...customWPs].map((w) => ({ ...w, deps: [...w.deps], pia: false, injected: false }));
   if (mods.pia) {
     list.push({ id: "WP-PIA", name: "Privacy Impact Assessment & consultation", cost: 100, benefit: 55, deps: [], skills: ["Privacy"], kind: "governance", injected: true });
-    list = list.map((w) => (w.touchesPII ? { ...w, pia: true, deps: w.id === "WP4" ? [...w.deps, "WP-PIA"] : w.deps } : w));
+    list = list.map((w) => (w.touchesPII ? { ...w, pia: true, deps: [...w.deps, "WP-PIA"] } : w));
   }
   if (mods.change) {
     list.push({ id: "WP-CM", name: "Change-management runway — LMA", cost: 120, benefit: 50, deps: [], skills: ["Change mgmt"], kind: "people", injected: true });
@@ -129,8 +129,8 @@ function activeWPs(mods) {
   return list;
 }
 
-function planRoadmap(base, mods) {
-  const WPS = activeWPs(mods);
+function planRoadmap(base, mods, customWPs = []) {
+  const WPS = activeWPs(mods, customWPs);
   const byId = Object.fromEntries(WPS.map((w) => [w.id, w]));
   const done = new Set(), order = [];
   let frontier = WPS.filter((w) => !w.deps.length);
@@ -196,6 +196,7 @@ const CONCEPTS = {
   road: { title: "Migration Planning", tag: "TOGAF ADM · Phases E–F", body: "A dependency-sequenced, budget-packed roadmap is what TOGAF calls Opportunities & Solutions and Migration Planning. Each column is a coherent interim state.", why: "In the GoC, an unfunded roadmap is a poster. Waves snap to fiscal years and TB cycles." },
   overlay: { title: "The Overlay Pattern", tag: "Modular extensibility", body: "Modules never modify the core seven entities. Each is an overlay: extra attributes, rules, and views keyed to core IDs — like dimension tables joined to a fact table by foreign key. Install or drop one without touching the core.", why: "This is what keeps the tool from accreting into an unmaintainable monolith." },
   info: { title: "Information Object", tag: "TOGAF · Data Architecture (Phase C)", body: "Pass 3 looks past capabilities and processes to the data itself: an Information Object — like a business register or contact list — touched by multiple processes across units. Even when their capabilities differ, independently building and maintaining separate pipelines to the same underlying data is duplicated integration effort.", why: "Data duplication is invisible in an org chart and invisible in a capability map — it only shows up when you trace the data itself." },
+  wp: { title: "Work Package", tag: "TOGAF ADM · Migration Planning artifacts", body: "A Work Package is the atomic funded unit of change in a migration plan — its own cost, benefit, and dependencies on other packages. The roadmap engine topologically sorts by dependency, then greedily packs by benefit-per-dollar into fiscal envelopes. Proposing your own package tests how a real initiative would land against the existing plan.", why: "TB submissions are built from work packages, not capabilities — this is the unit a Treasury analyst actually reads." },
 };
 
 /* ---------------- UI atoms ---------------- */
@@ -226,6 +227,13 @@ export default function CapabilityAtlas() {
   const [mods, setMods] = useState({ cost: false, airead: false, pia: false, change: false });
   const [mergedSem, setMergedSem] = useState({});
   const [flaggedIO, setFlaggedIO] = useState({});
+  const [customWPs, setCustomWPs] = useState([]);
+  const [wpName, setWpName] = useState("");
+  const [wpCost, setWpCost] = useState(200);
+  const [wpBenefit, setWpBenefit] = useState(50);
+  const [wpDeps, setWpDeps] = useState([]);
+  const [wpTouchesPII, setWpTouchesPII] = useState(false);
+  const [wpSkillsText, setWpSkillsText] = useState("");
 
   const mine = UNITS.find((u) => u.mine);
   const mySvcs = services.filter((s) => s.unitId === mine.id);
@@ -259,6 +267,20 @@ export default function CapabilityAtlas() {
     setMods((m) => ({ ...m, [id]: !m[id] }));
     if (!mods[id]) fire("overlay");
   };
+  const toggleDep = (id) => setWpDeps((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
+  const addCustomWP = () => {
+    if (!wpName.trim()) return;
+    const id = "WPU" + Math.random().toString(36).slice(2, 5).toUpperCase();
+    setCustomWPs((cs) => [...cs, {
+      id, name: wpName.trim(),
+      cost: Math.max(50, +wpCost || 200), benefit: Math.min(100, Math.max(1, +wpBenefit || 50)),
+      deps: [...wpDeps], skills: wpSkillsText.split(",").map((s) => s.trim()).filter(Boolean),
+      touchesPII: wpTouchesPII, kind: "custom",
+    }]);
+    setWpName(""); setWpCost(200); setWpBenefit(50); setWpDeps([]); setWpTouchesPII(false); setWpSkillsText("");
+    fire("wp");
+  };
+  const removeCustomWP = (id) => setCustomWPs((cs) => cs.filter((w) => w.id !== id));
 
   /* overlap math */
   const grid = useMemo(() => {
@@ -293,7 +315,7 @@ export default function CapabilityAtlas() {
 
   const ranked = [...grid.rows].filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
   const aiCandidates = [...TAXONOMY].sort((a, b) => b.ready - a.ready);
-  const plan = useMemo(() => planRoadmap(base, mods), [base, mods]);
+  const plan = useMemo(() => planRoadmap(base, mods, customWPs), [base, mods, customWPs]);
   const activeModCount = Object.values(mods).filter(Boolean).length;
 
   const T = {
@@ -556,6 +578,47 @@ export default function CapabilityAtlas() {
                   <span className="mono text-sm font-semibold">{fmtK(base)} / yr</span>
                 </div>
               </div>
+
+              {/* propose a work package */}
+              <div className="rounded-lg border p-5" style={{ borderColor: C.line, background: C.card }}>
+                <h3 className="text-base font-bold">Propose a work package</h3>
+                <p className="mt-1 text-sm" style={{ color: C.mut }}>Add your own package with cost, benefit, and dependencies — it slots into the same topological sort and fiscal-envelope packing as the base plan.</p>
+                <div className="mt-3 flex flex-col gap-2">
+                  <input value={wpName} onChange={(e) => setWpName(e.target.value)} placeholder="e.g., Modernize disclosure control tooling" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: C.line, background: C.paper }} />
+                  <div className="flex flex-wrap gap-3">
+                    <label className="flex items-center gap-1.5 text-xs" style={{ color: C.mut }}>Cost ($K/yr)
+                      <input type="number" min={50} step={50} value={wpCost} onChange={(e) => setWpCost(e.target.value)} className="mono w-24 rounded-md border px-2 py-1 text-sm" style={{ borderColor: C.line, background: C.paper }} />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs" style={{ color: C.mut }}>Benefit (0–100)
+                      <input type="number" min={1} max={100} value={wpBenefit} onChange={(e) => setWpBenefit(e.target.value)} className="mono w-20 rounded-md border px-2 py-1 text-sm" style={{ borderColor: C.line, background: C.paper }} />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs" style={{ color: C.mut }}>
+                      <input type="checkbox" checked={wpTouchesPII} onChange={(e) => setWpTouchesPII(e.target.checked)} /> Touches personal information
+                    </label>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-xs font-medium" style={{ color: C.mut }}>Depends on</div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.values(plan.byId).map((w) => (
+                        <Chip key={w.id} on={wpDeps.includes(w.id)} onClick={() => toggleDep(w.id)}>{w.id}</Chip>
+                      ))}
+                    </div>
+                  </div>
+                  <input value={wpSkillsText} onChange={(e) => setWpSkillsText(e.target.value)} placeholder="Skills needed, comma-separated (optional)" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: C.line, background: C.paper }} />
+                  <button onClick={addCustomWP} className="flex w-fit items-center justify-center gap-1 rounded-md px-4 py-2 text-sm font-semibold" style={{ background: C.gold, color: C.ink }}><Plus size={15} /> Add package</button>
+                </div>
+                {customWPs.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-1.5">
+                    {customWPs.map((w) => (
+                      <div key={w.id} className="mono flex items-center justify-between gap-2 rounded border px-3 py-1.5 text-xs" style={{ borderColor: C.gold, background: C.goldSoft }}>
+                        <span>{w.id} · {w.name} · {fmtK(w.cost)} · benefit {w.benefit}{w.deps.length ? ` · needs ${w.deps.join(", ")}` : ""}</span>
+                        <button onClick={() => removeCustomWP(w.id)} style={{ color: "#7A5410" }} aria-label={`Remove ${w.id}`}><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {YEARS.map((yr, y) => {
                   const wave = plan.waves[y]; const spent = wave.reduce((a, w) => a + w.cost, 0); const envelope = base + plan.boosts[y];
@@ -569,8 +632,8 @@ export default function CapabilityAtlas() {
                       <div className="flex flex-1 flex-col gap-2 p-2">
                         {wave.length === 0 && <div className="p-2 text-xs" style={{ color: C.mut }}>No packages fit this wave.</div>}
                         {wave.map((w) => (
-                          <div key={w.id} className="rounded-md p-2.5" style={{ border: w.injected ? `1.5px dashed ${C.violet}` : `1px solid ${w.kind === "retire" ? C.teal : C.line}`, background: w.injected ? C.violetSoft : w.kind === "retire" ? C.tealSoft : C.paper }}>
-                            <div className="mono text-[11px] font-semibold" style={{ color: w.injected ? C.violet : C.mut }}>{w.id} · {fmtK(w.cost)}{w.injected ? " · overlay" : ""}</div>
+                          <div key={w.id} className="rounded-md p-2.5" style={{ border: w.injected ? `1.5px dashed ${C.violet}` : w.kind === "custom" ? `1.5px solid ${C.gold}` : `1px solid ${w.kind === "retire" ? C.teal : C.line}`, background: w.injected ? C.violetSoft : w.kind === "custom" ? C.goldSoft : w.kind === "retire" ? C.tealSoft : C.paper }}>
+                            <div className="mono text-[11px] font-semibold" style={{ color: w.injected ? C.violet : w.kind === "custom" ? "#7A5410" : C.mut }}>{w.id} · {fmtK(w.cost)}{w.injected ? " · overlay" : w.kind === "custom" ? " · yours" : ""}</div>
                             <div className="mt-0.5 text-sm font-semibold leading-tight">{w.name}</div>
                             <div className="mt-1.5 flex flex-wrap gap-1">
                               {w.deps.map((d) => <Tag key={d} tone="ink">needs {d}</Tag>)}

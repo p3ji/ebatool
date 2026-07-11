@@ -28,7 +28,7 @@ npm run dev
 - Pass 2 — semantic near-duplicates via text-embedding similarity, surfaced as confirm-to-merge candidates, never auto-merged
 - Pass 3 — data-effort duplication via shared Information Objects (`INFO_OBJECTS`/`INFO_LINKS` in [src/CapabilityAtlas.jsx](src/CapabilityAtlas.jsx)): traces processes that maintain/consume the same underlying data across units even when their capabilities differ, so it catches duplication Pass 1/2 miss. Flag-for-review, not auto-merge, matching Pass 2's confirm pattern.
 
-**Transition Roadmap engine** — work packages → dependency DAG → Kahn topological sort → greedy benefit-per-dollar packing into fiscal-year envelopes (`YEARS = FY27-28...FY30-31`). Retirement packages auto-pair with automation packages; their savings (`+freed`) compound into later envelopes — a self-funding narrative for TB submissions. Deferred packages report why.
+**Transition Roadmap engine** — work packages → dependency DAG → Kahn topological sort → greedy benefit-per-dollar packing into fiscal-year envelopes (`YEARS = FY27-28...FY30-31`). Retirement packages auto-pair with automation packages; their savings (`+freed`) compound into later envelopes — a self-funding narrative for TB submissions. Deferred packages report why. Users can propose their own work packages (name, cost, benefit, dependencies picked from currently active packages, optional PII flag) via the Roadmap tab — `customWPs` state flows into `activeWPs()`/`planRoadmap()` alongside `BASE_WPS`, so proposals go through the identical sort/pack/PIA-gating logic, not a separate code path.
 
 **Implemented overlay modules:**
 - Cost & Effort — dollarizes FTE/O&M ($130K/FTE assumption), turns heatmap scores into $ savings
@@ -40,7 +40,6 @@ npm run dev
 
 ## Not yet built (good next steps)
 
-- Editable/addable work packages with user-declared dependencies
 - Value-stream lane view for Module 1's current-state sketching
 - Export to a TB-submission-style document (docx/pdf)
 - Persistence (storage API, or a real backend)
