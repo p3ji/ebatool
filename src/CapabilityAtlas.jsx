@@ -1,9 +1,36 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Lock, Sparkles, Grid3x3, Route, BookOpen, X, Plus, Info, ChevronRight,
   Check, NotebookPen, Flag, Recycle, GraduationCap, ShieldAlert, Puzzle,
-  Cpu, Coins, HeartHandshake, Link2, Zap, Layers, Database
+  Cpu, Coins, HeartHandshake, Link2, Zap, Layers, Database, RotateCcw
 } from "lucide-react";
+
+/* ---------------- Persistence ----------------
+   Workbook entries, installed overlays, and roadmap edits survive reloads,
+   so the multi-session "each unit enters its own data" story actually holds.
+   Transient UI (active tab, toast, form drafts) is intentionally NOT persisted. */
+const STORE_KEY = "capability-atlas:v1";
+function loadStore() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+const persisted = loadStore();
+function usePersistentState(key, initial) {
+  const [val, setVal] = useState(() => (key in persisted ? persisted[key] : initial));
+  useEffect(() => {
+    try {
+      const cur = loadStore();
+      cur[key] = val;
+      localStorage.setItem(STORE_KEY, JSON.stringify(cur));
+    } catch { /* storage unavailable (private mode / quota) — run in-memory */ }
+  }, [key, val]);
+  return [val, setVal];
+}
+function clearStore() {
+  try { localStorage.removeItem(STORE_KEY); } catch { /* no-op */ }
+}
 
 /* ============================================================
    CAPABILITY ATLAS — clickable EBA prototype (v2: overlay modules)
@@ -213,27 +240,28 @@ const Tag = ({ icon: I, children, tone = "gold" }) => {
 
 /* ============================================================ */
 export default function CapabilityAtlas() {
-  const [std, setStd] = useState(false);
+  const [std, setStd] = usePersistentState("std", false);
   const [view, setView] = useState("workbook");
-  const [services, setServices] = useState(SEED_SERVICES);
-  const [processes, setProcesses] = useState(SEED_PROCESSES);
-  const [learned, setLearned] = useState([]);
+  const [services, setServices] = usePersistentState("services", SEED_SERVICES);
+  const [processes, setProcesses] = usePersistentState("processes", SEED_PROCESSES);
+  const [learned, setLearned] = usePersistentState("learned", []);
   const [toast, setToast] = useState(null);
-  const [fired, setFired] = useState({});
+  const [fired, setFired] = usePersistentState("fired", {});
   const [svcName, setSvcName] = useState("");
   const [svcTo, setSvcTo] = useState("");
   const [sel, setSel] = useState(null);
-  const [base, setBase] = useState(1200);
-  const [mods, setMods] = useState({ cost: false, airead: false, pia: false, change: false });
-  const [mergedSem, setMergedSem] = useState({});
-  const [flaggedIO, setFlaggedIO] = useState({});
-  const [customWPs, setCustomWPs] = useState([]);
+  const [base, setBase] = usePersistentState("base", 1200);
+  const [mods, setMods] = usePersistentState("mods", { cost: false, airead: false, pia: false, change: false });
+  const [mergedSem, setMergedSem] = usePersistentState("mergedSem", {});
+  const [flaggedIO, setFlaggedIO] = usePersistentState("flaggedIO", {});
+  const [customWPs, setCustomWPs] = usePersistentState("customWPs", []);
   const [wpName, setWpName] = useState("");
   const [wpCost, setWpCost] = useState(200);
   const [wpBenefit, setWpBenefit] = useState(50);
   const [wpDeps, setWpDeps] = useState([]);
   const [wpTouchesPII, setWpTouchesPII] = useState(false);
   const [wpSkillsText, setWpSkillsText] = useState("");
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const mine = UNITS.find((u) => u.mine);
   const mySvcs = services.filter((s) => s.unitId === mine.id);
@@ -281,6 +309,14 @@ export default function CapabilityAtlas() {
     fire("wp");
   };
   const removeCustomWP = (id) => setCustomWPs((cs) => cs.filter((w) => w.id !== id));
+  const resetAll = () => {
+    clearStore();
+    setStd(false); setServices(SEED_SERVICES); setProcesses(SEED_PROCESSES);
+    setLearned([]); setFired({}); setBase(1200);
+    setMods({ cost: false, airead: false, pia: false, change: false });
+    setMergedSem({}); setFlaggedIO({}); setCustomWPs([]);
+    setToast(null); setSel(null); setView("workbook"); setConfirmReset(false);
+  };
 
   /* overlap math */
   const grid = useMemo(() => {
@@ -365,14 +401,29 @@ export default function CapabilityAtlas() {
               <div className="mono text-xs" style={{ color: "#A8B2C6" }}>EBA workbook · national statistical agency · demo</div>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs" style={{ color: "#A8B2C6" }}>Labels:</span>
-            <div className="flex overflow-hidden rounded-full border" style={{ borderColor: "#3C4C6B" }}>
-              {["Plain", "Standard"].map((m, i) => (
-                <button key={m} onClick={() => setStd(i === 1)} className="px-3 py-1 text-xs font-semibold"
-                  style={{ background: std === (i === 1) ? C.gold : "transparent", color: std === (i === 1) ? C.ink : "#A8B2C6" }}>{m}</button>
-              ))}
+          <div className="ml-auto flex items-center gap-3">
+            <span className="mono hidden items-center gap-1 text-[11px] sm:inline-flex" style={{ color: "#7F8AA0" }} title="Your entries are saved in this browser and restored on reload."><Check size={11} /> saved locally</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: "#A8B2C6" }}>Labels:</span>
+              <div className="flex overflow-hidden rounded-full border" style={{ borderColor: "#3C4C6B" }}>
+                {["Plain", "Standard"].map((m, i) => (
+                  <button key={m} onClick={() => setStd(i === 1)} className="px-3 py-1 text-xs font-semibold"
+                    style={{ background: std === (i === 1) ? C.gold : "transparent", color: std === (i === 1) ? C.ink : "#A8B2C6" }}>{m}</button>
+                ))}
+              </div>
             </div>
+            {confirmReset ? (
+              <span className="flex items-center gap-1">
+                <button onClick={resetAll} title="Confirm reset to seed data" className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold" style={{ background: C.crimson, color: "#FFF" }}>
+                  <RotateCcw size={12} /> Confirm reset
+                </button>
+                <button onClick={() => setConfirmReset(false)} title="Cancel" className="rounded-md border px-2 py-1 text-xs font-semibold" style={{ borderColor: "#3C4C6B", color: "#A8B2C6" }}>Cancel</button>
+              </span>
+            ) : (
+              <button onClick={() => setConfirmReset(true)} title="Reset workbook to seed data" className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: "#3C4C6B", color: "#A8B2C6" }}>
+                <RotateCcw size={12} /> Reset
+              </button>
+            )}
           </div>
         </div>
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">

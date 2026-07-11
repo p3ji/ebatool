@@ -38,11 +38,13 @@ npm run dev
 
 **Design tokens** — ink navy `#16233A`, warm paper `#F4F2EC`, archival gold `#D99A2B`, heat crimson `#8E2540`, teal `#2F6F6A`, violet `#5A4A8A` (AI/overlay elements). Signature element: the heatmap-driven insight-unlock rail.
 
+**Persistence** — `usePersistentState(key, initial)` hook mirrors workbook/roadmap state into `localStorage` under `capability-atlas:v1` (services, processes, learned concepts, fired tooltips, base envelope, installed mods, merged/flagged candidates, custom packages, label mode). Transient UI (active tab, toast, form drafts, selection) is deliberately *not* persisted. Header has a two-click inline Reset (not `window.confirm` — that blocks the renderer and clashes with the design) that clears the store and restores seed data. Storage failures (private mode/quota) fall back to in-memory silently.
+
 ## Not yet built (good next steps)
 
 - Value-stream lane view for Module 1's current-state sketching
 - Export to a TB-submission-style document (docx/pdf)
-- Persistence (storage API, or a real backend)
+- Real backend persistence (currently localStorage only — no cross-device/multi-user sync)
 
 ## Rules
 
