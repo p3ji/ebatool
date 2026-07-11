@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import {
   Lock, Sparkles, Grid3x3, Route, BookOpen, X, Plus, Info, ChevronRight,
   Check, NotebookPen, Flag, Recycle, GraduationCap, ShieldAlert, Puzzle,
-  Cpu, Coins, HeartHandshake, Link2, Zap, Layers
+  Cpu, Coins, HeartHandshake, Link2, Zap, Layers, Database
 } from "lucide-react";
 
 /* ============================================================
@@ -81,6 +81,25 @@ const SEMANTIC = [
   { a: "Client services desk (DCS)", b: "Respondent relations line (LMA)", sim: 0.89, cap: "Stakeholder Engagement" },
   { a: "Enterprise metadata repository (DIB)", b: "LMA metadata tracking (LMA)", sim: 0.86, cap: "Metadata Management" },
   { a: "Pre-release vetting (DCS)", b: "Confidentiality review (BSO)", sim: 0.83, cap: "Disclosure Control" },
+];
+
+/* shared Information Objects (Pass 3) — data-effort duplication independent of capability/process text */
+const INFO_OBJECTS = [
+  { id: "io1", name: "Business Register / Frame", desc: "Master list of business entities — identifiers, structure, contact info." },
+  { id: "io2", name: "Respondent Contact List", desc: "Names, emails, phone numbers used to reach survey respondents." },
+  { id: "io3", name: "Metadata Repository", desc: "Variable definitions, classifications, and methodology documentation." },
+];
+const INFO_LINKS = [
+  { procId: "p1", ioId: "io1", role: "maintains" },
+  { procId: "p5", ioId: "io1", role: "maintains" },
+  { procId: "p9", ioId: "io1", role: "consumes" },
+  { procId: "px1", ioId: "io1", role: "consumes" },
+  { procId: "p2", ioId: "io2", role: "consumes" },
+  { procId: "p10", ioId: "io2", role: "maintains" },
+  { procId: "p4", ioId: "io3", role: "maintains" },
+  { procId: "p7", ioId: "io3", role: "maintains" },
+  { procId: "p11", ioId: "io3", role: "maintains" },
+  { procId: "px4", ioId: "io3", role: "maintains" },
 ];
 
 /* ---------------- Work packages ---------------- */
@@ -176,6 +195,7 @@ const CONCEPTS = {
   heat: { title: "Gap & Overlap Analysis", tag: "TOGAF ADM · Phase B outputs", body: "This heatmap is a capability duplication analysis: one capability instantiated as separate processes in multiple units. Found mechanically from your entries — not opinion — and every cell traces back to source records.", why: "Evidence of duplication is the classic architecture 'quick win' that funds deeper work." },
   road: { title: "Migration Planning", tag: "TOGAF ADM · Phases E–F", body: "A dependency-sequenced, budget-packed roadmap is what TOGAF calls Opportunities & Solutions and Migration Planning. Each column is a coherent interim state.", why: "In the GoC, an unfunded roadmap is a poster. Waves snap to fiscal years and TB cycles." },
   overlay: { title: "The Overlay Pattern", tag: "Modular extensibility", body: "Modules never modify the core seven entities. Each is an overlay: extra attributes, rules, and views keyed to core IDs — like dimension tables joined to a fact table by foreign key. Install or drop one without touching the core.", why: "This is what keeps the tool from accreting into an unmaintainable monolith." },
+  info: { title: "Information Object", tag: "TOGAF · Data Architecture (Phase C)", body: "Pass 3 looks past capabilities and processes to the data itself: an Information Object — like a business register or contact list — touched by multiple processes across units. Even when their capabilities differ, independently building and maintaining separate pipelines to the same underlying data is duplicated integration effort.", why: "Data duplication is invisible in an org chart and invisible in a capability map — it only shows up when you trace the data itself." },
 };
 
 /* ---------------- UI atoms ---------------- */
@@ -205,6 +225,7 @@ export default function CapabilityAtlas() {
   const [base, setBase] = useState(1200);
   const [mods, setMods] = useState({ cost: false, airead: false, pia: false, change: false });
   const [mergedSem, setMergedSem] = useState({});
+  const [flaggedIO, setFlaggedIO] = useState({});
 
   const mine = UNITS.find((u) => u.mine);
   const mySvcs = services.filter((s) => s.unitId === mine.id);
@@ -257,6 +278,19 @@ export default function CapabilityAtlas() {
     return { cells, max, rows };
   }, [processes]);
 
+  /* Pass 3: shared Information Objects — data-effort duplication independent of capability match */
+  const ioGrid = useMemo(() => {
+    return INFO_OBJECTS.map((io) => {
+      const links = INFO_LINKS.filter((l) => l.ioId === io.id)
+        .map((l) => ({ ...l, proc: processes.find((p) => p.id === l.procId) }))
+        .filter((l) => l.proc);
+      const unitIds = [...new Set(links.map((l) => l.proc.unitId))];
+      const units = unitIds.map((id) => UNITS.find((u) => u.id === id));
+      const totFte = links.reduce((a, l) => a + l.proc.fte, 0);
+      return { io, links, units, totFte, mineIn: units.some((u) => u.mine) };
+    }).filter((r) => r.units.length >= 2);
+  }, [processes]);
+
   const ranked = [...grid.rows].filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
   const aiCandidates = [...TAXONOMY].sort((a, b) => b.ready - a.ready);
   const plan = useMemo(() => planRoadmap(base, mods), [base, mods]);
@@ -283,7 +317,7 @@ export default function CapabilityAtlas() {
   ];
   const openView = (id, locked) => {
     setView(id);
-    if (!locked && id === "heatmap") fire("heat");
+    if (!locked && id === "heatmap") { fire("heat"); setTimeout(() => fire("info"), 400); }
     if (!locked && id === "roadmap") fire("road");
     if (id === "modules") fire("overlay");
   };
@@ -458,6 +492,39 @@ export default function CapabilityAtlas() {
                       {mergedSem[i] ? <Tag icon={Check} tone="teal">merged → {m.cap}</Tag> :
                         <button onClick={() => setMergedSem((s) => ({ ...s, [i]: true }))} className="rounded-md border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: C.teal, color: C.teal }}>Confirm merge</button>}
                     </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pass 3 shared information objects */}
+              <div className="rounded-lg border p-5" style={{ borderColor: C.line, background: C.card }}>
+                <div className="flex items-center gap-2"><Database size={16} style={{ color: C.gold }} /><h3 className="text-base font-bold">Shared data duplication</h3><Tag tone="gold">Pass 3</Tag></div>
+                <p className="mt-1 text-sm" style={{ color: C.mut }}>Passes 1–2 match on capability and process text. Pass 3 traces the underlying <b>Information Object</b> — when units independently build pipelines to the same data, that's duplicated integration effort even if their capabilities never overlap.</p>
+                {ioGrid.length === 0 && <div className="mt-3 text-sm" style={{ color: C.mut }}>No shared information objects detected yet.</div>}
+                {ioGrid.map((r) => (
+                  <div key={r.io.id} className="mt-3 rounded-md border p-3" style={{ borderColor: C.line }}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-bold">{r.io.name} <span className="mono text-xs font-normal" style={{ color: C.mut }}>· {r.units.length} units · {r.totFte} FTE</span></div>
+                        <div className="mt-0.5 text-xs" style={{ color: C.mut }}>{r.io.desc}</div>
+                      </div>
+                      {flaggedIO[r.io.id] ? <Tag icon={Check} tone="gold">flagged for review</Tag> :
+                        <button onClick={() => setFlaggedIO((s) => ({ ...s, [r.io.id]: true }))} className="shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: C.gold, color: "#7A5410" }}>Flag for shared-service review</button>}
+                    </div>
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {r.links.map((l) => {
+                        const cap = TAXONOMY.find((c) => c.id === l.proc.capId);
+                        const unit = UNITS.find((u) => u.id === l.proc.unitId);
+                        return (
+                          <div key={l.procId} className="mono flex flex-wrap items-center gap-2 rounded border px-3 py-1.5 text-xs" style={{ borderColor: C.line, background: C.paper }}>
+                            <span style={{ color: unit.mine ? C.gold : C.ink, fontWeight: 600 }}>{unit.short}</span>
+                            <span style={{ color: C.mut }}>{l.role}</span>
+                            <span>{l.proc.name}</span>
+                            <span style={{ color: C.mut }}>({std ? cap.std : cap.plain})</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>

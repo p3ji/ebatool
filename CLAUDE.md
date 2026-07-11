@@ -23,10 +23,10 @@ npm run dev
 
 **Progressive disclosure / unlock economy** — plain-language workbook entries silently map to formal entities; a just-in-time tooltip fires the first time each concept is created and gets saved to the Glossary tab. Heatmap + Roadmap views stay locked until the user has entered enough data (2 services, 3 capabilities) — a network-effect loop where one manager's quick win recruits other units to enter data.
 
-**Overlap detection, 3 passes:**
-- Pass 1 (built) — structural: any Capability with Processes in ≥2 Org Units, score = `(units−1) × totalFTE`
-- Pass 2 (built) — semantic near-duplicates via text-embedding similarity, surfaced as confirm-to-merge candidates, never auto-merged
-- Pass 3 (not yet built) — data-effort duplication via shared Information Objects
+**Overlap detection, 3 passes (all built):**
+- Pass 1 — structural: any Capability with Processes in ≥2 Org Units, score = `(units−1) × totalFTE`
+- Pass 2 — semantic near-duplicates via text-embedding similarity, surfaced as confirm-to-merge candidates, never auto-merged
+- Pass 3 — data-effort duplication via shared Information Objects (`INFO_OBJECTS`/`INFO_LINKS` in [src/CapabilityAtlas.jsx](src/CapabilityAtlas.jsx)): traces processes that maintain/consume the same underlying data across units even when their capabilities differ, so it catches duplication Pass 1/2 miss. Flag-for-review, not auto-merge, matching Pass 2's confirm pattern.
 
 **Transition Roadmap engine** — work packages → dependency DAG → Kahn topological sort → greedy benefit-per-dollar packing into fiscal-year envelopes (`YEARS = FY27-28...FY30-31`). Retirement packages auto-pair with automation packages; their savings (`+freed`) compound into later envelopes — a self-funding narrative for TB submissions. Deferred packages report why.
 
@@ -40,7 +40,6 @@ npm run dev
 
 ## Not yet built (good next steps)
 
-- Pass 3 data-duplication view (shared Information Objects)
 - Editable/addable work packages with user-declared dependencies
 - Value-stream lane view for Module 1's current-state sketching
 - Export to a TB-submission-style document (docx/pdf)
