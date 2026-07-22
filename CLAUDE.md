@@ -44,12 +44,28 @@ npm run dev
 
 **Value stream / Production Flow view** — the "Value Stream" tab (unlocks with the heatmap) renders the statistical-production line as horizontal stages (`VALUE_STREAM`: Frame→Collect→Process→Estimate→Protect→Disseminate, each mapped to a core capability), with one lane per org unit built from `grid.cells[capId+unitId]`. Stages active in ≥2 lanes get a "N× duplicated" tag — the heatmap's finding placed in flow context. Cross-cutting capabilities (`SUPPORTING_CAPS` = c7 Stakeholder Engagement, c8 Metadata) render as a separate supporting band below, since they span every stage. CSS-grid layout with a shared `gridTemplateColumns` so lanes align under stage headers; horizontally scrollable.
 
+## Deployment
+
+GitHub Pages via Actions: [.github/workflows/deploy.yml](.github/workflows/deploy.yml) builds `dist/` and publishes on every push to `main`. Live URL: https://p3ji.github.io/ebatool/. The Vite `base` is `/ebatool/` **for builds only** (`command === 'build'` conditional in [vite.config.ts](vite.config.ts)) — an unconditional base broke local dev by redirecting root to `/ebatool/`, don't regress that. **Pending manual step:** repo Settings → Pages → Source must be flipped to "GitHub Actions" (currently "Deploy from a branch", which serves the raw unbuilt index.html whose `/src/main.tsx` reference 404s — the exact symptom of the site "not loading"). Only the repo owner can flip it; no `gh` CLI/token in this environment.
+
+## Direction — v2 reframing (agreed 2026-07, NOT yet built)
+
+Domain-expert feedback (user, 2026-07-13) surfaced real design flaws in the v1 framing. Anchor references: the GC **Service and Digital Target Enterprise Architecture** white paper (canada.ca; key phrase: reduce "**unnecessary** redundancy" via reusable components implementing business capabilities, Strangler-Fig incremental transition) and the agency's **official capability model** preserved in [docs/target-capability-model.md](docs/target-capability-model.md).
+
+1. **Multi-unit ≠ redundancy.** The Pass 1 score flags any capability in ≥2 units, but duplication is only waste when the work is *undifferentiated*. Domain-differentiated work (estimation for labour vs. immigration) is legitimately distributed; commodity/platform work (collection platforms, metadata pipelines) is the real candidate. Planned: a commodity ↔ domain-differentiated attribute per capability; cross-domain hits on differentiated capabilities stop being flagged as overlap.
+2. **Deviation-from-owner beats raw duplication.** The official model already names a Proposed Business Owner and product family per capability — so the useful finding is "actual work diverges from intended owner," framed as *migration candidates onto the product family* + aggregated demand signal, not "cuts."
+3. **"Pass 1/2/3" is jargon leak.** Rename in UI: "Same capability, several units" / "Similar work, different words" / "Same data, separate pipelines."
+4. **FTE is not 1:1 cuttable.** People are fractional across capabilities; freed effort is *capacity, not headcount*. Planned: fractional/range effort capture, savings re-labelled "redeployable capacity," 35% haircut visible and adjustable.
+5. **Anti-shelfware rule.** The tool must import the official taxonomy (two-level: official L2/L3 → tangible workbook processes), pay the data-enterer first (their own service map/business case), and feed *existing* governance (ARB reviews, product-family scoping, investment planning) — never become a parallel inventory or new reporting obligation.
+
+Overall repositioning: less "redundancy detector," more **demand-aggregation and migration-sequencing tool for the product families already defined**. First implementation step when green-lit: swap `TAXONOMY` seed for the official model in docs/.
+
 ## Not yet built (good next steps)
 
+- v2 reframing above (waiting on user green-light — "not yet" as of 2026-07-13)
 - Real backend persistence (currently localStorage only — no cross-device/multi-user sync)
-- Native .docx export (current export is browser print-to-PDF)
-- Second value stream (currently one hardcoded production line; the meta-model supports multiple)
 - Native .docx export (current export is browser print-to-PDF; a true .docx would need a client-side lib or backend)
+- Second value stream (currently one hardcoded production line; the meta-model supports multiple)
 
 ## Rules
 
